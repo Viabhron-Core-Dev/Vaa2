@@ -1,4 +1,4 @@
-package com.example
+package com.shuravianbhron.vaa
 
 import android.content.Context
 import android.os.Bundle
@@ -27,7 +27,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.ui.theme.MyApplicationTheme
+import com.shuravianbhron.vaa.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -38,6 +38,24 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
+            try {
+                val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                val fileName = "vaa_crash_$timestamp.txt"
+                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                val file = java.io.File(downloadsDir, fileName)
+                java.io.PrintWriter(java.io.FileWriter(file)).use { writer ->
+                    exception.printStackTrace(writer)
+                }
+            } catch (e: Exception) {
+                // Ignore failure to write crash log
+            } finally {
+                defaultHandler?.uncaughtException(thread, exception)
+            }
+        }
+
         enableEdgeToEdge()
 
         var isReady by mutableStateOf(false)
