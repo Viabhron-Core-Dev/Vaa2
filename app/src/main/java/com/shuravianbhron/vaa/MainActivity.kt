@@ -10,13 +10,16 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -33,24 +36,21 @@ import kotlinx.coroutines.launch
 
 val Context.dataStore by preferencesDataStore(name = "settings")
 val FIRST_LAUNCH_COMPLETE = booleanPreferencesKey("first_launch_complete")
+val SHOW_LOG_FAB = booleanPreferencesKey("show_log_fab")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         
+        LogKeeper.init(applicationContext)
+
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
             try {
-                val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-                val fileName = "vaa_crash_$timestamp.txt"
-                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                val file = java.io.File(downloadsDir, fileName)
-                java.io.PrintWriter(java.io.FileWriter(file)).use { writer ->
-                    exception.printStackTrace(writer)
-                }
-            } catch (e: Exception) {
-                // Ignore failure to write crash log
+                LogKeeper.logError("UncaughtException", "Fatal unhandled exception in thread ${thread.name}", exception)
+            } catch (e: Throwable) {
+                // Ignore failure in log writing
             } finally {
                 defaultHandler?.uncaughtException(thread, exception)
             }
@@ -72,8 +72,12 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(isFirstLaunchComplete) {
                 if (isFirstLaunchComplete != null) {
-                    startDestination = if (isFirstLaunchComplete == true) "main_shell" else "welcome"
-                    isReady = true
+                    try {
+                        startDestination = if (isFirstLaunchComplete == true) "main_shell" else "welcome"
+                        isReady = true
+                    } catch (e: Throwable) {
+                        LogKeeper.logError("MainActivity", "Failed during destination resolution", e)
+                    }
                 }
             }
 
@@ -99,14 +103,17 @@ fun AppNavigation(startDestination: String, onGetStarted: () -> Unit) {
             WelcomeScreen(navController = navController, onGetStarted = onGetStarted)
         }
         composable("main_shell") {
-            MainShell()
+            MainShell(navController = navController)
+        }
+        composable("log_viewer") {
+            LogViewerScreen(navController = navController)
         }
     }
 }
 
 @Composable
 fun WelcomeScreen(navController: NavHostController, onGetStarted: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -133,12 +140,16 @@ fun WelcomeScreen(navController: NavHostController, onGetStarted: () -> Unit) {
             Button(
                 onClick = {
                     coroutineScope.launch {
-                        context.dataStore.edit { preferences ->
-                            preferences[FIRST_LAUNCH_COMPLETE] = true
-                        }
-                        onGetStarted()
-                        navController.navigate("main_shell") {
-                            popUpTo("welcome") { inclusive = true }
+                        try {
+                            context.dataStore.edit { preferences ->
+                                preferences[FIRST_LAUNCH_COMPLETE] = true
+                            }
+                            onGetStarted()
+                            navController.navigate("main_shell") {
+                                popUpTo("welcome") { inclusive = true }
+                            }
+                        } catch (e: Throwable) {
+                            LogKeeper.logError("WelcomeScreen", "Failed to save first launch state", e)
                         }
                     }
                 }
@@ -150,15 +161,40 @@ fun WelcomeScreen(navController: NavHostController, onGetStarted: () -> Unit) {
 }
 
 @Composable
-fun MainShell() {
+fun MainShell(navController: NavHostController) {
     val pagerState = rememberPagerState(pageCount = { 4 })
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     
-    val items = listOf("Chats", "Updates", "Loader", "Placeholder")
-    val icons = listOf(Icons.AutoMirrored.Filled.Chat, Icons.Filled.Refresh, Icons.Filled.Download, Icons.Filled.MoreHoriz)
+    val items = listOf("Chats", "Updates", "Loader", "Settings")
+    val icons = listOf(Icons.AutoMirrored.Filled.Chat, Icons.Filled.Refresh, Icons.Filled.Download, Icons.Filled.Settings)
+
+    val showFabFlow = remember {
+        context.dataStore.data.map { preferences ->
+            preferences[SHOW_LOG_FAB] ?: true
+        }
+    }
+    val showFab by showFabFlow.collectAsState(initial = true)
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        floatingActionButton = {
+            if (showFab) {
+                FloatingActionButton(
+                    onClick = { 
+                        try {
+                            navController.navigate("log_viewer") 
+                        } catch (e: Throwable) {
+                            LogKeeper.logError("MainShell", "Failed to navigate to log viewer", e)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(Icons.Filled.BugReport, contentDescription = "View Logs")
+                }
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Start,
         bottomBar = {
             NavigationBar {
                 items.forEachIndexed { index, title ->
@@ -168,7 +204,11 @@ fun MainShell() {
                         selected = pagerState.currentPage == index,
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(index)
+                                try {
+                                    pagerState.animateScrollToPage(index)
+                                } catch (e: Throwable) {
+                                    LogKeeper.logError("MainShell", "Failed to animate scroll to page $index", e)
+                                }
                             }
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -187,14 +227,18 @@ fun MainShell() {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) { page ->
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "${items[page]} Screen Placeholder",
-                    style = MaterialTheme.typography.headlineMedium
-                )
+            if (page == 3) {
+                SettingsScreen()
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "${items[page]} Screen Placeholder",
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                }
             }
         }
     }
