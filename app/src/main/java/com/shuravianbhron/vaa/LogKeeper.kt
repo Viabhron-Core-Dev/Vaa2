@@ -16,21 +16,10 @@ object LogKeeper {
 
     /**
      * Dedicated logging function to prevent ad-hoc exception dumps.
-     * Hard rule: NEVER pass sensitive data (passwords, cookies, API keys, PII) to this function.
+     * Callers are responsible for never passing credentials, passwords, cookies, or API keys to this function.
+     * Do not add keyword-based filtering here — it is not a reliable substitute for callers being correct.
      */
     fun logError(tag: String, message: String, exception: Throwable? = null) {
-        // Enforce hard exclusion: If any sensitive keywords are detected, drop the log entirely.
-        // We do NOT redact after the fact.
-        val lowerMessage = message.lowercase(Locale.US)
-        if (lowerMessage.contains("password") || 
-            lowerMessage.contains("cookie") || 
-            lowerMessage.contains("api_key") ||
-            lowerMessage.contains("apikey") ||
-            lowerMessage.contains("token") || 
-            lowerMessage.contains("credential")) {
-            return
-        }
-
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
         val exceptionStr = exception?.stackTraceToString()?.let { "\n$it" } ?: ""
         val logEntry = "[$timestamp] [$tag]: $message$exceptionStr\n\n"

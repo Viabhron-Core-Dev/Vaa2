@@ -105,6 +105,9 @@ fun AppNavigation(startDestination: String, onGetStarted: () -> Unit) {
         composable("main_shell") {
             MainShell(navController = navController)
         }
+        composable("settings") {
+            SettingsScreen(navController = navController)
+        }
         composable("log_viewer") {
             LogViewerScreen(navController = navController)
         }
@@ -166,8 +169,8 @@ fun MainShell(navController: NavHostController) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     
-    val items = listOf("Chats", "Updates", "Loader", "Settings")
-    val icons = listOf(Icons.AutoMirrored.Filled.Chat, Icons.Filled.Refresh, Icons.Filled.Download, Icons.Filled.Settings)
+    val items = listOf("Chats", "Updates", "Loader", "Placeholder")
+    val icons = listOf(Icons.AutoMirrored.Filled.Chat, Icons.Filled.Refresh, Icons.Filled.Download, Icons.Filled.MoreHoriz)
 
     val showFabFlow = remember {
         context.dataStore.data.map { preferences ->
@@ -227,17 +230,19 @@ fun MainShell(navController: NavHostController) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) { page ->
-            if (page == 3) {
-                SettingsScreen()
-            } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "${items[page]} Screen Placeholder",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                IconButton(
+                    onClick = { navController.navigate("settings") },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
-                    Text(
-                        text = "${items[page]} Screen Placeholder",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
+                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
