@@ -67,6 +67,8 @@ fun SettingsScreen(navController: NavController) {
                                 context.dataStore.edit { preferences ->
                                     preferences[SHOW_LOG_FAB] = isChecked
                                 }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e // Not a real error — normal coroutine cancellation, let it propagate
                             } catch (e: Throwable) {
                                 LogKeeper.logError("SettingsScreen", "Failed to update FAB preference", e)
                             }

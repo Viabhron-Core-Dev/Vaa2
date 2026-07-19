@@ -151,6 +151,8 @@ fun WelcomeScreen(navController: NavHostController, onGetStarted: () -> Unit) {
                             navController.navigate("main_shell") {
                                 popUpTo("welcome") { inclusive = true }
                             }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e // Not a real error — normal coroutine cancellation, let it propagate
                         } catch (e: Throwable) {
                             LogKeeper.logError("WelcomeScreen", "Failed to save first launch state", e)
                         }
@@ -209,6 +211,8 @@ fun MainShell(navController: NavHostController) {
                             coroutineScope.launch {
                                 try {
                                     pagerState.animateScrollToPage(index)
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e // Not a real error — normal coroutine cancellation, let it propagate
                                 } catch (e: Throwable) {
                                     LogKeeper.logError("MainShell", "Failed to animate scroll to page $index", e)
                                 }
