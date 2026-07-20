@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -110,6 +111,26 @@ fun AppNavigation(startDestination: String, onGetStarted: () -> Unit) {
         }
         composable("log_viewer") {
             LogViewerScreen(navController = navController)
+        }
+        composable("dummy_detail/{id}") { backStackEntry ->
+            val id = backStackEntry.arguments?.getString("id")
+            Scaffold(
+                topBar = {
+                    @OptIn(ExperimentalMaterial3Api::class)
+                    TopAppBar(
+                        title = { Text("Dummy Detail $id") },
+                        navigationIcon = {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        }
+                    )
+                }
+            ) { padding ->
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text("Detail view for thread $id")
+                }
+            }
         }
     }
 }
@@ -234,19 +255,23 @@ fun MainShell(navController: NavHostController) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) { page ->
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "${items[page]} Screen Placeholder",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                IconButton(
-                    onClick = { navController.navigate("settings") },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+            if (page == 0) {
+                ChatsScreen(navController = navController)
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = "${items[page]} Screen Placeholder",
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                    IconButton(
+                        onClick = { navController.navigate("settings") },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                    ) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
