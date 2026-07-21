@@ -41,13 +41,10 @@ val dummyThreads = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ChatsScreen(navController: NavController) {
+fun ChatsScreen(navController: NavController, onLongClickThread: (DummyThread) -> Unit) {
     val context = LocalContext.current
     var expandedMenu by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("All") }
-
-    var openTabs by remember { mutableStateOf(listOf<DummyThread>()) }
-    var activeTabIds by remember { mutableStateOf(listOf<String>()) }
 
     val filters = listOf("All", "Chat", "Page", "Local")
 
@@ -135,10 +132,7 @@ fun ChatsScreen(navController: NavController) {
                         },
                         onLongClick = {
                             try {
-                                if (!openTabs.contains(thread)) {
-                                    openTabs = openTabs + thread
-                                }
-                                activeTabIds = (listOf(thread.id) + activeTabIds.filter { it != thread.id }).take(3)
+                                onLongClickThread(thread)
                                 Toast.makeText(context, "Opened in new tab", Toast.LENGTH_SHORT).show()
                             } catch (e: CancellationException) {
                                 throw e
@@ -149,78 +143,6 @@ fun ChatsScreen(navController: NavController) {
                     )
                 )
                 HorizontalDivider()
-            }
-        }
-
-        // Tab Strip
-        if (openTabs.isNotEmpty()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        openTabs.forEach { tab ->
-                            val isActive = activeTabIds.contains(tab.id)
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
-                                    .combinedClickable(
-                                        onClick = {
-                                            try {
-                                                activeTabIds = (listOf(tab.id) + activeTabIds.filter { it != tab.id }).take(3)
-                                            } catch (e: Throwable) {
-                                                LogKeeper.logError("ChatsScreen", "Failed to focus tab", e)
-                                            }
-                                        }
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = tab.name.take(1),
-                                    color = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(onClick = { Toast.makeText(context, "Add New Tab tapped", Toast.LENGTH_SHORT).show() }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add Tab")
-                    }
-                    var tabMenuExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { tabMenuExpanded = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "Tab Menu")
-                        }
-                        DropdownMenu(
-                            expanded = tabMenuExpanded,
-                            onDismissRequest = { tabMenuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Close tab (Stub)") },
-                                onClick = {
-                                    tabMenuExpanded = false
-                                    Toast.makeText(context, "Close Tab tapped", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                    }
-                }
             }
         }
     }

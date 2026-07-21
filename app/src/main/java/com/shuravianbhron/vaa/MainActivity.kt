@@ -2,12 +2,19 @@ package com.shuravianbhron.vaa
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.BugReport
@@ -15,11 +22,14 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -186,6 +196,7 @@ fun WelcomeScreen(navController: NavHostController, onGetStarted: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainShell(navController: NavHostController) {
     val pagerState = rememberPagerState(pageCount = { 4 })
@@ -201,6 +212,9 @@ fun MainShell(navController: NavHostController) {
         }
     }
     val showFab by showFabFlow.collectAsState(initial = true)
+
+    var openTabs by remember { mutableStateOf(listOf<DummyThread>()) }
+    var activeTabIds by remember { mutableStateOf(listOf<String>()) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -222,29 +236,103 @@ fun MainShell(navController: NavHostController) {
         },
         floatingActionButtonPosition = FabPosition.Start,
         bottomBar = {
-            NavigationBar {
-                items.forEachIndexed { index, title ->
-                    NavigationBarItem(
-                        icon = { Icon(icons[index], contentDescription = title) },
-                        label = { Text(title) },
-                        selected = pagerState.currentPage == index,
-                        onClick = {
-                            coroutineScope.launch {
-                                try {
-                                    pagerState.animateScrollToPage(index)
-                                } catch (e: kotlinx.coroutines.CancellationException) {
-                                    throw e // Not a real error — normal coroutine cancellation, let it propagate
-                                } catch (e: Throwable) {
-                                    LogKeeper.logError("MainShell", "Failed to animate scroll to page $index", e)
+            Column {
+                NavigationBar {
+                    items.forEachIndexed { index, title ->
+                        NavigationBarItem(
+                            icon = { Icon(icons[index], contentDescription = title) },
+                            label = { Text(title) },
+                            selected = pagerState.currentPage == index,
+                            onClick = {
+                                coroutineScope.launch {
+                                    try {
+                                        pagerState.animateScrollToPage(index)
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e // Not a real error — normal coroutine cancellation, let it propagate
+                                    } catch (e: Throwable) {
+                                        LogKeeper.logError("MainShell", "Failed to animate scroll to page $index", e)
+                                    }
+                                }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
+                
+                // Tab Strip
+                if (openTabs.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                openTabs.forEach { tab ->
+                                    val isActive = activeTabIds.contains(tab.id)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
+                                            .combinedClickable(
+                                                onClick = {
+                                                    try {
+                                                        activeTabIds = (listOf(tab.id) + activeTabIds.filter { it != tab.id }).take(3)
+                                                    } catch (e: Throwable) {
+                                                        LogKeeper.logError("MainShell", "Failed to focus tab", e)
+                                                    }
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = tab.name.take(1),
+                                            color = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                    }
                                 }
                             }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            IconButton(onClick = { Toast.makeText(context, "Add New Tab tapped", Toast.LENGTH_SHORT).show() }) {
+                                Icon(Icons.Filled.Add, contentDescription = "Add Tab")
+                            }
+                            var tabMenuExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { tabMenuExpanded = true }) {
+                                    Icon(Icons.Filled.MoreVert, contentDescription = "Tab Menu")
+                                }
+                                DropdownMenu(
+                                    expanded = tabMenuExpanded,
+                                    onDismissRequest = { tabMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Close tab (Stub)") },
+                                        onClick = {
+                                            tabMenuExpanded = false
+                                            Toast.makeText(context, "Close Tab tapped", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -256,7 +344,19 @@ fun MainShell(navController: NavHostController) {
                 .padding(innerPadding)
         ) { page ->
             if (page == 0) {
-                ChatsScreen(navController = navController)
+                ChatsScreen(
+                    navController = navController,
+                    onLongClickThread = { thread ->
+                        try {
+                            if (!openTabs.contains(thread)) {
+                                openTabs = openTabs + thread
+                            }
+                            activeTabIds = (listOf(thread.id) + activeTabIds.filter { it != thread.id }).take(3)
+                        } catch (e: Throwable) {
+                            LogKeeper.logError("MainShell", "Failed to open new tab", e)
+                        }
+                    }
+                )
             } else {
                 Box(
                     modifier = Modifier.fillMaxSize(),
