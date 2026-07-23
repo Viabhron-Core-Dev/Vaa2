@@ -236,7 +236,7 @@ fun MainShell(navController: NavHostController) {
         },
         floatingActionButtonPosition = FabPosition.Start,
         bottomBar = {
-            Column {
+            Column(modifier = Modifier.navigationBarsPadding()) {
                 NavigationBar {
                     items.forEachIndexed { index, title ->
                         NavigationBarItem(
